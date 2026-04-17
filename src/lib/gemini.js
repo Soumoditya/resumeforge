@@ -2,7 +2,31 @@ import { GoogleGenAI } from "@google/genai";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-const MODEL = "gemini-2.0-flash";
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash-lite"];
+
+async function callGemini(prompt, config = {}) {
+  let lastError;
+  for (const model of MODELS) {
+    try {
+      const response = await ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          temperature: config.temperature || 0.3,
+          maxOutputTokens: config.maxOutputTokens || 4096,
+        },
+      });
+      const text = response.text.trim();
+      const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+      return JSON.parse(cleaned);
+    } catch (err) {
+      console.warn(`Model ${model} failed: ${err.status || err.message}, trying next...`);
+      lastError = err;
+      continue;
+    }
+  }
+  throw lastError;
+}
 
 export async function analyzeResume(resumeText) {
   const prompt = `You are an expert resume reviewer and career coach with 15+ years of recruiting experience at top companies.
@@ -49,18 +73,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
   }
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      temperature: 0.3,
-      maxOutputTokens: 4096,
-    },
-  });
-
-  const text = response.text.trim();
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(cleaned);
+  return callGemini(prompt, { temperature: 0.3, maxOutputTokens: 4096 });
 }
 
 export async function generateResumeContent(resumeData, targetRole) {
@@ -105,18 +118,7 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
   }
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      temperature: 0.5,
-      maxOutputTokens: 3000,
-    },
-  });
-
-  const text = response.text.trim();
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(cleaned);
+  return callGemini(prompt, { temperature: 0.5, maxOutputTokens: 3000 });
 }
 
 export async function tailorResume(resumeText, jobDescription) {
@@ -159,16 +161,5 @@ Respond ONLY with valid JSON (no markdown, no code blocks):
   "additionalTips": ["<tip 1>", "<tip 2>"]
 }`;
 
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      temperature: 0.4,
-      maxOutputTokens: 4096,
-    },
-  });
-
-  const text = response.text.trim();
-  const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-  return JSON.parse(cleaned);
+  return callGemini(prompt, { temperature: 0.4, maxOutputTokens: 4096 });
 }
